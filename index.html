@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Attendance System</title>
+    <!-- html2pdf library for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        /* CSS Reset & Body Styling */
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            -webkit-tap-highlight-color: transparent; /* Remove Chrome blue highlight */
+            user-select: none; /* Prevent long press text selection */
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 30px;
+            padding-bottom: 30px;
+        }
+
+        /* Glass Panel Box */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            width: 92%;
+            max-width: 450px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        h2, h3 { text-align: center; margin-bottom: 20px; letter-spacing: 1px; }
+
+        /* Input Fields */
+        input[type="text"], input[type="date"] {
+            width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.2); 
+            color: #fff; font-size: 15px; outline: none;
+            user-select: text; /* Allow text input selection */
+            -webkit-user-select: text;
+        }
+        input::placeholder { color: rgba(255,255,255,0.6); }
+
+        /* Buttons with Zoom Out Click Effect */
+        .btn { 
+            padding: 14px; border: none; border-radius: 8px; cursor: pointer; 
+            color: white; width: 100%; font-weight: bold; font-size: 16px; 
+            transition: transform 0.15s ease; margin-bottom: 10px;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn:active { 
+            transform: scale(0.92); /* Zoom Out Click Effect */
+        }
+        .btn-green { background: #38ef7d; color: #000; box-shadow: 0 4px 15px rgba(56, 239, 125, 0.3); }
+        .btn-blue { background: #3498db; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
+        .btn-orange { background: #e67e22; box-shadow: 0 4px 15px rgba(230, 126, 34, 0.3); }
+        
+        #attendance-screen { display: none; }
+
+        /* Attendance Checkbox List */
+        .attendance-list-container { 
+            max-height: 50vh; overflow-y: auto; background: rgba(0,0,0,0.2); 
+            padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1);
+            overflow-x: hidden;
+        }
+        .roll-row { 
+            display: flex; justify-content: space-between; padding: 10px 8px; 
+            border-bottom: 1px solid rgba(255,255,255,0.1); align-items: center;
+            transition: all 0.3s ease;
+        }
+        .roll-row label { cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 16px; width: 100%; }
+        .roll-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: #38ef7d; cursor: pointer;}
+
+        /* --- SPEEDY INWARD SHRINK ANIMATION --- */
+        @keyframes shrinkIn {
+            0% { opacity: 1; transform: scale(1); max-height: 50px; }
+            50% { opacity: 0.5; transform: scale(0.4); max-height: 50px; }
+            100% { opacity: 0; transform: scale(0); max-height: 0; padding-top: 0; padding-bottom: 0; border: none; margin: 0; overflow: hidden; }
+        }
+        .hide-animated {
+            animation: shrinkIn 0.3s forwards ease-in-out;
+            pointer-events: none;
+        }
+
+        /* --- STYLISH GLASS POPUP MODAL --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .glass-modal {
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 16px;
+            padding: 25px;
+            width: 88%;
+            max-width: 380px;
+            text-align: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            color: #ffffff;
+            animation: modalPop 0.2s ease-out;
+        }
+        @keyframes modalPop {
+            from { transform: scale(0.85); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 10px; }
+
+        /* PDF Export Styling - HIDDEN FROM UI */
+        #pdf-export-area { 
+            display: none; background: #fff; color: #000; 
+            padding: 10px 30px 30px 30px; /* Reduced top padding for better margin */
+            font-family: Arial, sans-serif; width: 100%; 
+        }
+        .pdf-header { text-align: center; margin-bottom: 20px; font-weight: bold; font-size: 20px; text-decoration: underline; }
+        .pdf-meta-container { 
+            display: flex; justify-content: space-between; margin-bottom: 25px; 
+            font-size: 14px; border-bottom: 2px solid #444; padding-bottom: 15px; line-height: 1.6;
+        }
+        .pdf-table { width: auto; border-collapse: collapse; margin: 0; }
+        .pdf-table th, .pdf-table td { border: none; padding: 5px 0; font-size: 15px; }
+        .pdf-table tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+    </style>
+</head>
+<body>
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen" class="glass-panel">
+        <h2>Attendance Setup</h2>
+        <input type="text" id="inputBranch" placeholder="Branch (e.g. Civil)">
+        <input type="text" id="inputClass" placeholder="Class Name (e.g. Communication Skills)">
+        <input type="date" id="inputDate">
+        <input type="text" id="inputTeacher" placeholder="Teacher's Name">
+        <input type="text" id="inputCr" placeholder="CR's Name">
+        <!-- Dynamic Roll Number Range Box -->
+        <input type="text" id="inputRollPattern" placeholder="Roll Range (e.g. [1-120,305-315])">
+        
+        <button class="btn btn-green" onclick="proceedToAttendance()">Start New Attendance</button>
+        <!-- Save Load Button -->
+        <button class="btn btn-blue" id="loadSavedBtn" onclick="loadSavedAttendance()" style="display: none;">Load Saved Attendance 📂</button>
+    </div>
+
+    <!-- ATTENDANCE SCREEN -->
+    <div id="attendance-screen" class="glass-panel">
+        <h3>Mark Attendance <br><span style="font-size:12px; font-weight:normal; color:#ccc;">(Click to Mark Present & Remove from List)</span></h3>
+        <div class="attendance-list-container" id="attendance-list">
+            <!-- Checkboxes generated by JS dynamically -->
+        </div>
+        
+        <button class="btn btn-blue" onclick="saveAttendance()">Save Attendance 💾</button>
+        <button class="btn btn-green" onclick="downloadPdf()">Download PDF 📄</button>
+        <button class="btn btn-orange" onclick="goBackToHome()">Back to Home</button>
+    </div>
+
+    <!-- GLASS POPUP MODAL -->
+    <div id="glass-modal-overlay" class="modal-overlay">
+        <div class="glass-modal">
+            <h3 id="modal-title" style="margin-bottom: 12px;">Notice</h3>
+            <div id="modal-msg" style="margin-bottom: 20px; font-size: 15px; line-height: 1.5;"></div>
+            <div id="modal-buttons"></div>
+        </div>
+    </div>
+
+    <!-- PDF EXPORT STRUCTURE (HIDDEN) -->
+    <div id="pdf-export-area">
+        <div class="pdf-header">CLASS ATTENDANCE REPORT</div>
+        <div class="pdf-meta-container">
+            <div>
+                <strong>Branch:</strong> <span id="pdf-branch"></span><br>
+                <strong>Class:</strong> <span id="pdf-class"></span><br>
+                <strong>Teacher:</strong> <span id="pdf-teacher"></span>
+            </div>
+            <div style="text-align: right;">
+                <strong>Date:</strong> <span id="pdf-date"></span><br>
+                <strong>CR Name:</strong> <span id="pdf-cr"></span>
+            </div>
+        </div>
+        
+        <table class="pdf-table">
+            <thead>
+                <tr>
+                    <th style="width: 95px; text-align: left; text-decoration: underline;">Roll Number</th>
+                    <th style="text-align: left; text-decoration: underline; padding-left: 5px;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="pdf-table-body">
+                <!-- PDF Rows generated by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Global variables
+        let rollNumbers = [];
+        let hasUnsavedChanges = false;
+
+        // Initial setup and History State Handling
+        window.onload = () => {
+            history.replaceState({ screen: 'home' }, '');
+            document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+
+            if (localStorage.getItem('savedAttendanceData')) {
+                document.getElementById('loadSavedBtn').style.display = 'block';
+            }
+        };
+
+        // Glass Modal Helper Functions
+        function openGlassModal(title, messageHtml, buttonsHtml) {
+            document.getElementById('modal-title').innerHTML = title;
+            document.getElementById('modal-msg').innerHTML = messageHtml;
+            document.getElementById('modal-buttons').innerHTML = buttonsHtml;
+            
+            const overlay = document.getElementById('glass-modal-overlay');
+            if (overlay.style.display !== 'flex') {
+                overlay.style.display = 'flex';
+                history.pushState({ screen: 'modal' }, '');
+            }
+        }
+
+        function closeGlassModal() {
+            const overlay = document.getElementById('glass-modal-overlay');
+            overlay.style.display = 'none';
+        }
+
+        function showGlassAlert(msg) {
+            openGlassModal("Notice", msg, `<button class="btn btn-green" onclick="closeGlassModal()">OK</button>`);
+        }
+
+        // Parse roll number pattern
+        function parseRollPattern(pattern) {
+            if (!pattern) return [];
+            let clean = pattern.replace(/[\[\]]/g, '').trim();
+            if (!clean) return [];
+
+            let parts = clean.split(',');
+            let result = [];
+
+            parts.forEach(part => {
+                part = part.trim();
+                if(!part) return;
+
+                let rangeSplit = part.split(/[-xX]/);
+                
+                if (rangeSplit.length === 2) {
+                    let start = parseInt(rangeSplit[0].trim(), 10);
+                    let end = parseInt(rangeSplit[1].trim(), 10);
+                    
+                    if (!isNaN(start) && !isNaN(end)) {
+                        let min = Math.min(start, end);
+                        let max = Math.max(start, end);
+                        for (let i = min; i <= max; i++) {
+                            result.push(i);
+                        }
+                    }
+                } else {
+                    let num = parseInt(part, 10);
+                    if (!isNaN(num)) {
+                        result.push(num);
+                    }
+                }
+            });
+
+            return Array.from(new Set(result)).sort((a, b) => a - b);
+        }
+
+        // Render Checkboxes in Attendance List
+        function renderAttendanceList() {
+            const container = document.getElementById('attendance-list');
+            container.innerHTML = '';
+            
+            rollNumbers.forEach(roll => {
+                container.innerHTML += `
+                <div class="roll-row" id="row_${roll}">
+                    <label>
+                        <input type="checkbox" id="roll_${roll}" onchange="handleCheckboxClick(${roll})"> 
+                        Roll No. ${roll}
+                    </label>
+                </div>`;
+            });
+        }
+
+        // Trigger Inward Animation and mark unsaved state
+        function handleCheckboxClick(roll) {
+            const checkbox = document.getElementById(`roll_${roll}`);
+            const rowDiv = document.getElementById(`row_${roll}`);
+            
+            if (checkbox && checkbox.checked) {
+                hasUnsavedChanges = true; // Set unsaved status
+                rowDiv.classList.add('hide-animated');
+                
+                setTimeout(() => {
+                    rowDiv.style.display = 'none';
+                }, 300); 
+            }
+        }
+
+        // Move to Attendance screen
+        function proceedToAttendance() {
+            const branch = document.getElementById('inputBranch').value.trim();
+            const className = document.getElementById('inputClass').value.trim();
+            const pattern = document.getElementById('inputRollPattern').value.trim();
+
+            if (branch === '' || className === '') {
+                showGlassAlert("Please fill in Branch and Class details.");
+                return;
+            }
+
+            if (pattern === '') {
+                showGlassAlert("Please enter Roll Range (e.g. [1-120,305-315]).");
+                return;
+            }
+
+            rollNumbers = parseRollPattern(pattern);
+
+            if (rollNumbers.length === 0) {
+                showGlassAlert("Invalid Roll Pattern! Please use correct format.");
+                return;
+            }
+
+            renderAttendanceList();
+            hasUnsavedChanges = false;
+
+            document.getElementById('home-screen').style.display = 'none';
+            document.getElementById('attendance-screen').style.display = 'block';
+
+            history.pushState({ screen: 'attendance' }, '');
+        }
+
+        // Direct function to return to home without checks
+        function goBackToHomeDirect() {
+            hasUnsavedChanges = false;
+            document.getElementById('attendance-screen').style.display = 'none';
+            document.getElementById('home-screen').style.display = 'block';
+        }
+
+        // Go Back to Home Screen with unsaved check
+        function goBackToHome() {
+            if (hasUnsavedChanges) {
+                promptUnsavedWarning();
+                return;
+            }
+            goBackToHomeDirect();
+            if (history.state && history.state.screen === 'attendance') {
+                history.back();
+            }
+        }
+
+        // Prompt user to save attendance on exit
+        function promptUnsavedWarning() {
+            openGlassModal(
+                "⚠️ अटेंडेंस सेव करें",
+                "आप अपना अटेंडेंस सेव कर लें!",
+                `<button class="btn btn-blue" onclick="saveAttendanceFromModal()">Save Attendance 💾</button>
+                 <button class="btn btn-orange" onclick="closeGlassModal(); goBackToHomeDirect();">Discard & Exit</button>`
+            );
+        }
+
+        // Save Attendance triggered from glass modal
+        function saveAttendanceFromModal() {
+            saveAttendance();
+            closeGlassModal();
+            goBackToHomeDirect();
+        }
+
+        // SAVE ATTENDANCE FUNCTION
+        function saveAttendance() {
+            const attendanceData = {
+                branch: document.getElementById('inputBranch').value,
+                className: document.getElementById('inputClass').value,
+                date: document.getElementById('inputDate').value,
+                teacher: document.getElementById('inputTeacher').value,
+                cr: document.getElementById('inputCr').value,
+                rollPattern: document.getElementById('inputRollPattern').value,
+                rollNumbers: rollNumbers,
+                presentRolls: []
+            };
+
+            // Collect all ticked roll numbers
+            rollNumbers.forEach(roll => {
+                const chk = document.getElementById(`roll_${roll}`);
+                if (chk && chk.checked) {
+                    attendanceData.presentRolls.push(roll);
+                }
+            });
+
+            localStorage.setItem('savedAttendanceData', JSON.stringify(attendanceData));
+            hasUnsavedChanges = false;
+            
+            showGlassAlert("Attendance Saved Successfully! <br>(डेटा सेव हो गया है।)");
+            
+            document.getElementById('loadSavedBtn').style.display = 'block';
+        }
+
+        // LOAD SAVED ATTENDANCE FUNCTION
+        function loadSavedAttendance() {
+            const savedDataString = localStorage.getItem('savedAttendanceData');
+            if (savedDataString) {
+                const data = JSON.parse(savedDataString);
+                
+                document.getElementById('inputBranch').value = data.branch || '';
+                document.getElementById('inputClass').value = data.className || '';
+                document.getElementById('inputDate').value = data.date || new Date().toISOString().split('T')[0];
+                document.getElementById('inputTeacher').value = data.teacher || '';
+                document.getElementById('inputCr').value = data.cr || '';
+                document.getElementById('inputRollPattern').value = data.rollPattern || '';
+
+                if (data.rollNumbers && data.rollNumbers.length > 0) {
+                    rollNumbers = data.rollNumbers;
+                } else if (data.rollPattern) {
+                    rollNumbers = parseRollPattern(data.rollPattern);
+                }
+
+                renderAttendanceList();
+
+                // Tick saved roll numbers and HIDE them visually
+                if (data.presentRolls) {
+                    data.presentRolls.forEach(roll => {
+                        const checkbox = document.getElementById(`roll_${roll}`);
+                        const rowDiv = document.getElementById(`row_${roll}`);
+                        if(checkbox) {
+                            checkbox.checked = true;
+                            if(rowDiv) rowDiv.style.display = 'none'; 
+                        }
+                    });
+                }
+
+                hasUnsavedChanges = false;
+                document.getElementById('home-screen').style.display = 'none';
+                document.getElementById('attendance-screen').style.display = 'block';
+                
+                history.pushState({ screen: 'attendance' }, '');
+            }
+        }
+
+        // Generate and Download PDF
+        function downloadPdf() {
+            document.getElementById('pdf-branch').innerText = document.getElementById('inputBranch').value;
+            document.getElementById('pdf-class').innerText = document.getElementById('inputClass').value;
+            document.getElementById('pdf-teacher').innerText = document.getElementById('inputTeacher').value;
+            document.getElementById('pdf-cr').innerText = document.getElementById('inputCr').value;
+            document.getElementById('pdf-date').innerText = document.getElementById('inputDate').value;
+
+            const tbody = document.getElementById('pdf-table-body');
+            tbody.innerHTML = '';
+            
+            rollNumbers.forEach(roll => {
+                const chk = document.getElementById(`roll_${roll}`);
+                const isPresent = chk ? chk.checked : false; 
+                
+                const statusText = isPresent 
+                    ? '<span style="color: #444; margin-right: 4px; font-size: 1.1em;">&#10142;</span><span style="color: #0b8043; font-weight: bold;">Present</span>' 
+                    : '';
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight: bold; text-align: left;">Roll No. ${roll}</td>
+                        <td style="text-align: left; padding-left: 5px;">${statusText}</td>
+                    </tr>`;
+            });
+
+            const element = document.getElementById('pdf-export-area');
+            element.style.display = 'block';
+
+            // PDF margin is set here: [top, right, bottom, left]
+            const opt = {
+                margin:       [5, 10, 10, 10], 
+                filename:     `Attendance_${document.getElementById('inputDate').value}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['css', 'legacy'] } 
+            };
+
+            html2pdf().from(element).set(opt).save().then(() => {
+                element.style.display = 'none';
+            });
+        }
+
+        // Back Button Event Listener
+        window.addEventListener('popstate', (e) => {
+            const overlay = document.getElementById('glass-modal-overlay');
+
+            // 1. If glass popup is open, back button closes the popup modal first
+            if (overlay.style.display === 'flex') {
+                overlay.style.display = 'none';
+                return;
+            }
+
+            // 2. If on attendance screen
+            const attendanceScreen = document.getElementById('attendance-screen');
+            if (attendanceScreen.style.display === 'block') {
+                if (hasUnsavedChanges) {
+                    history.pushState({ screen: 'attendance' }, '');
+                    promptUnsavedWarning();
+                } else {
+                    goBackToHomeDirect();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+
+
