@@ -303,16 +303,44 @@
                 container.innerHTML += `
                 <div class="roll-row" id="row_${safeId}">
                     <label>
-                        <input type="checkbox" id="${safeId}" onchange="handleCheckboxClick()"> 
+                        <input type="checkbox" id="${safeId}" onchange="handleCheckboxClick(this, '${roll}')"> 
                         ${roll}
                     </label>
                 </div>`;
             });
         }
 
-        // Mark unsaved changes
-        function handleCheckboxClick() {
+        // Mark unsaved changes & Check Roll 10 Condition
+        function handleCheckboxClick(checkboxElem, roll) {
             hasUnsavedChanges = true; 
+
+            // If checkbox is ticked (checked)
+            if (checkboxElem && checkboxElem.checked && roll) {
+                let match = String(roll).match(/(\d+)$/);
+                if (match) {
+                    let currentNum = parseInt(match[1], 10);
+                    // Check if clicked roll number is greater than 10
+                    if (currentNum > 10) {
+                        let prefix = roll.substring(0, roll.length - match[1].length);
+                        // Find roll 10 matching the prefix or number 10
+                        let roll10 = rollNumbers.find(r => r === (prefix + "10") || (r.match(/(\d+)$/)?.[1] === "10"));
+
+                        if (roll10) {
+                            let safeId10 = getSafeId(roll10);
+                            let chk10 = document.getElementById(safeId10);
+                            
+                            // If Roll 10 is NOT checked, show popup
+                            if (chk10 && !chk10.checked) {
+                                openGlassModal(
+                                    "Request",
+                                    "अरे भाई, Roll No-10 बना दो Please🥺",
+                                    `<button class="btn btn-green" onclick="closeGlassModal()">OK</button>`
+                                );
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // Move to Attendance screen
